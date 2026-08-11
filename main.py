@@ -27,6 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "message": "Seerah Backend is running"}
+
 # ── Request / Response models ──────────────────────────────────────────
 class ChatRequest(BaseModel):
     message: str
