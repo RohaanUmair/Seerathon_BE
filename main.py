@@ -30,7 +30,7 @@ app.add_middleware(
 @app.get("/")
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "message": "Seerah Backend is running"}
+    return {"status": "ok", "message": "Seerat Ki Dunya API is active"}
 
 # ── Request / Response models ──────────────────────────────────────────
 class ChatRequest(BaseModel):
