@@ -27,6 +27,25 @@ def extract_keyword(query: str) -> str:
     return ' '.join(keywords) if keywords else query
 
 
+async def _fetch_corpus_items(client: httpx.AsyncClient, endpoint: str, term: str, extra_params: dict = None) -> list:
+    """Helper to fetch items from corpus endpoint with a given term."""
+    params = {"q": term, "limit": 5}
+    if extra_params:
+        params.update(extra_params)
+    try:
+        response = await client.get(f"{BASE_URL}/{endpoint}", params=params)
+        if response.status_code == 200:
+            data = response.json()
+            raw = data.get("data", data)
+            if isinstance(raw, dict):
+                return raw.get("items", [])
+            elif isinstance(raw, list):
+                return raw
+    except Exception:
+        pass
+    return []
+
+
 async def search_shamail(query: str) -> str:
     """
     Search the Shamail corpus for entries related to the query.
@@ -35,20 +54,15 @@ async def search_shamail(query: str) -> str:
     search_term = extract_keyword(query)
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            response = await client.get(
-                f"{BASE_URL}/shamail",
-                params={"q": search_term, "limit": 5, "include_hikayat": "true"},
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            # API returns { error: false, data: { items: [...] } }
-            items = []
-            raw = data.get("data", data)
-            if isinstance(raw, dict):
-                items = raw.get("items", [])
-            elif isinstance(raw, list):
-                items = raw
+            items = await _fetch_corpus_items(client, "shamail", search_term, {"include_hikayat": "true"})
+            
+            # If multi-word search returned 0 items, retry with individual words
+            if not items and " " in search_term:
+                words = sorted([w for w in search_term.split() if len(w) > 2], key=len, reverse=True)
+                for word in words:
+                    items = await _fetch_corpus_items(client, "shamail", word, {"include_hikayat": "true"})
+                    if items:
+                        break
 
             if not items:
                 return "[]"
@@ -80,19 +94,15 @@ async def search_timeline(query: str) -> str:
     search_term = extract_keyword(query)
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            response = await client.get(
-                f"{BASE_URL}/timeline",
-                params={"q": search_term, "limit": 5},
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            items = []
-            raw = data.get("data", data)
-            if isinstance(raw, dict):
-                items = raw.get("items", [])
-            elif isinstance(raw, list):
-                items = raw
+            items = await _fetch_corpus_items(client, "timeline", search_term)
+            
+            # If multi-word search returned 0 items, retry with individual words
+            if not items and " " in search_term:
+                words = sorted([w for w in search_term.split() if len(w) > 2], key=len, reverse=True)
+                for word in words:
+                    items = await _fetch_corpus_items(client, "timeline", word)
+                    if items:
+                        break
 
             if not items:
                 return "[]"
